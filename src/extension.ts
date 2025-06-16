@@ -2,12 +2,13 @@
 
 import * as vscode from 'vscode';
 import axios from 'axios';
+import * as https from 'https';
 
 var qs = require('qs');
 const { ChatOpenAI } = require("@langchain/openai");
 const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
 
-async function requestWithCrumb(url: string, crumbUrl: string, user: string|undefined, pass: string|undefined, token: string|undefined, output: vscode.OutputChannel) {
+async function requestWithCrumb(url: string, crumbUrl: string, user: string|undefined, pass: string|undefined, token: string|undefined, strictSsl: boolean, output: vscode.OutputChannel) {
     let options: any = {
         method: 'get',
         url: crumbUrl,
@@ -23,6 +24,14 @@ async function requestWithCrumb(url: string, crumbUrl: string, user: string|unde
             options.headers = Object.assign(options.headers, { Authorization: 'Basic ' + authToken });
         }
     }
+    
+    if (!strictSsl) {
+        // Create custom HTTPS agent that ignores SSL certificate errors
+        const httpsAgent = new https.Agent({
+            rejectUnauthorized: false
+        });
+        options['httpsAgent'] = httpsAgent;
+    }
 
     console.log("=========== crumb options ==========>")
     console.log(options)
@@ -31,7 +40,7 @@ async function requestWithCrumb(url: string, crumbUrl: string, user: string|unde
     axios(options)
     .then((response: any) => {
         console.log(response)
-        validateRequest(url, user, pass, token, response.data, output);
+        validateRequest(url, user, pass, token, response.data, output, strictSsl);
     })
     .catch((err: any) => {
         console.log(err)
@@ -39,7 +48,7 @@ async function requestWithCrumb(url: string, crumbUrl: string, user: string|unde
     });
 }
 
-async function validateRequest(url: string, user: string|undefined, pass: string|undefined, token: string|undefined, crumb: string|undefined, output: vscode.OutputChannel) {
+async function validateRequest(url: string, user: string|undefined, pass: string|undefined, token: string|undefined, crumb: string|undefined, output: vscode.OutputChannel, strictSsl: boolean = true) {
     output.clear();
     let activeTextEditor = vscode.window.activeTextEditor;
     if (activeTextEditor !== undefined) {
@@ -100,6 +109,14 @@ async function validateRequest(url: string, user: string|undefined, pass: string
         console.log(options);
         console.log("=======  Jenkinsfile validate options :end  =======");
         
+        // Add HTTPS agent for SSL certificate validation when strictSSL is false
+        if (!vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.strictSsl')) {
+            const httpsAgent = new https.Agent({
+                rejectUnauthorized: false
+            });
+            options['httpsAgent'] = httpsAgent;
+        }
+        
         let jenkinsLinterResult = "";
         let llmSwitch = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.enable') as boolean | undefined;
         
@@ -119,7 +136,18 @@ async function validateRequest(url: string, user: string|undefined, pass: string
         .catch((err: any) => {
             console.log(options);
             console.log(err);
-            output.appendLine(err);
+            if (err.response) {
+                // The server responded with a status code outside the 2xx range
+                console.log(`Error ${err.response.status}: ${err.response.statusText}`);
+                console.log(`Response data: ${JSON.stringify(err.response.data)}`);
+            } else if (err.request) {
+                // The request was made but no response was received
+                console.log('No response received from server');
+            } else {
+                // Something happened in setting up the request
+                console.log(`Error: ${err.message}`);
+            }
+            console.log(err);
         });
 
         
@@ -158,7 +186,11 @@ export function activate(context: vscode.ExtensionContext) {
         let pass = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.pass') as string | undefined;
         let token = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.token') as string | undefined;
         let crumbUrl = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.crumbUrl') as string | undefined;
+        let strictSsl = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.strictSsl') as boolean | undefined;
 
+        if (strictSsl === undefined) {
+            strictSsl = true; // Default to true if not set
+        }
         if (url === undefined || url.length === 0) {
             url = await vscode.window.showInputBox({ prompt: 'Enter Jenkins Pipeline Linter Url.', value: lastInput });
         }
@@ -172,9 +204,9 @@ export function activate(context: vscode.ExtensionContext) {
             lastInput = url;
 
             if(crumbUrl !== undefined && crumbUrl.length > 0) {
-                requestWithCrumb(url, crumbUrl, user, pass, token, output);
+                requestWithCrumb(url, crumbUrl, user, pass, token, strictSsl, output);
             } else {
-                validateRequest(url, user, pass, token, undefined, output);
+                validateRequest(url, user, pass, token, undefined, output, strictSsl);
             }
         } else {
             output.appendLine('Jenkins Pipeline Linter Url is not defined.');

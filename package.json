@@ -11,12 +11,12 @@
         "url": "https://github.com/yeshan333/vscode-jenkins-pipeline-linter-connector.git"
     },
     "engines": {
-        "vscode": "^1.89.0"
+        "vscode": "^1.101.0"
     },
     "categories": [
         "Other"
     ],
-    "main": "./out/extension",
+    "main": "./out/extension.js",
     "contributes": {
         "commands": [
             {
@@ -54,6 +54,11 @@
                 "jenkins.pipeline.linter.connector.crumbUrl": {
                     "type": "string",
                     "description": "The url of the crumb service (i.e. http://<your_jenkins_server:port>/crumbIssuer/api/xml/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)"
+                },
+                "jenkins.pipeline.linter.connector.strictSsl": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Set to false to disable strict SSL checking. This is useful if you are using a self-signed certificate."
                 },
                 "jenkins.pipeline.linter.onsave": {
                     "type": "boolean",
@@ -115,6 +120,7 @@
     "dependencies": {
         "@langchain/openai": "^0.0.33",
         "axios": "^1.6.8",
+        "https": "^1.0.0",
         "langchain": "^0.2.0",
         "qs": "^6.12.1",
         "web-streams-polyfill": "^4.0.0"
