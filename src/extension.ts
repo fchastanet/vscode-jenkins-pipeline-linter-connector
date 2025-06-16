@@ -3,10 +3,8 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
 import * as https from 'https';
-
-var qs = require('qs');
-const { ChatOpenAI } = require("@langchain/openai");
-const { HumanMessage, SystemMessage } = require("@langchain/core/messages");
+import * as qs from 'qs';
+import OpenAI from 'openai';
 
 async function requestWithCrumb(url: string, crumbUrl: string, user: string|undefined, pass: string|undefined, token: string|undefined, strictSsl: boolean, output: vscode.OutputChannel) {
     let options: any = {
@@ -152,22 +150,36 @@ async function validateRequest(url: string, user: string|undefined, pass: string
 
         
         if(llmSwitch) {
-            process.env["OPENAI_BASE_URL"] = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.baseUrl') as string;
+            const baseUrl = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.baseUrl') as string;
             let modelName = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.modelName') as string;
             let apiKey = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.apiKey') as string;
             let respLangCode = vscode.workspace.getConfiguration().get('jenkins.pipeline.linter.connector.llm.respLangCode') as string;
 
-            const model = new ChatOpenAI({modelName: modelName, streaming: false, apiKey: apiKey});
+            const openai = new OpenAI({
+                apiKey: apiKey,
+                baseURL: baseUrl
+            });
+
             const system_prompt = "You're the core developer of Jenkins open source software. You are familiar with the syntax of Jenkins declarative Pipeline. Jenkins Pipeline Linter can check the contents of the Jenkinsfile and indicate if there are any syntax errors. I will put the inspection results of Jenkins Pipeline Linter in {}. Please give professional review opinions based on the inspection results of Jenkins Pipeline Linter Linter and the content of Jenkinsfile wrapped in []. Always response with language " + respLangCode;
             
-            const messages = [
-                new SystemMessage(system_prompt),
-                new HumanMessage("Jenkins Pipeline Linter validate result is {" + jenkinsLinterResult + "}, You should review Jenkinsfile content is: [" + activeTextEditor.document.getText() + "]. Please provide your code review feedback."),
-            ];
-
-            let resp = await model.invoke(messages);
-            console.log(resp);
-            output.appendLine("LLM Assistant Answer: \n" + resp.content.toString() + "\n");
+            try {
+                const completion = await openai.chat.completions.create({
+                    model: modelName,
+                    messages: [
+                        { role: "system", content: system_prompt },
+                        { role: "user", content: "Jenkins Pipeline Linter validate result is {" + jenkinsLinterResult + "}, You should review Jenkinsfile content is: [" + activeTextEditor.document.getText() + "]. Please provide your code review feedback." }
+                    ]
+                });
+                
+                console.log(completion);
+                if (completion.choices && completion.choices.length > 0) {
+                    const content = completion.choices[0].message.content;
+                    output.appendLine("LLM Assistant Answer: \n" + (content || "") + "\n");
+                }
+            } catch (error) {
+                console.error("Error calling OpenAI API:", error);
+                output.appendLine("Error calling LLM API. Check console for details.");
+            }
         }
     } else {
         output.appendLine('No active text editor. Open the jenkinsfile you want to validate.');

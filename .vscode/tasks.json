@@ -15,6 +15,13 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "Run Extension",
+			"type": "shell",
+			"command": "code --extensionDevelopmentPath=${workspaceFolder}",
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

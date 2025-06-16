@@ -16,7 +16,7 @@
     "categories": [
         "Other"
     ],
-    "main": "./out/extension.js",
+    "main": "./dist/extension.js",
     "contributes": {
         "commands": [
             {
@@ -103,25 +103,30 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "npm run webpack",
         "vscode:buildvsx": "npx @vscode/vsce package",
         "compile": "tsc -p ./",
+        "webpack": "webpack --mode production",
+        "webpack-dev": "webpack --mode development --watch",
         "lint": "eslint \"src/**/*.ts\"",
         "watch": "tsc -watch -p ./"
     },
     "devDependencies": {
         "@types/node": "^18",
+        "@types/qs": "^6.14.0",
         "@types/vscode": "^1.89.0",
         "@typescript-eslint/eslint-plugin": "^6.7.0",
         "@typescript-eslint/parser": "^6.7.0",
         "eslint": "^8.26.0",
-        "typescript": "^5.4.2"
+        "ts-loader": "^9.5.2",
+        "typescript": "^5.4.2",
+        "webpack": "^5.99.9",
+        "webpack-cli": "^6.0.1"
     },
     "dependencies": {
-        "@langchain/openai": "^0.0.33",
         "axios": "^1.6.8",
         "https": "^1.0.0",
-        "langchain": "^0.2.0",
+        "openai": "^5.5.0",
         "qs": "^6.12.1",
         "web-streams-polyfill": "^4.0.0"
     }
